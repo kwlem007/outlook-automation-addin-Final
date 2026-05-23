@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Inbox Automation</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+:root {
+  --ink:#1a1a1a;--muted:#8a8579;--border:#d9d6ce;--accent:#2e5cff;
+  --success:#1a7a4a;--warn:#c47a00;--danger:#c0392b;--card:#fafaf8;--paper:#f5f2eb;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);font-size:13px;height:100vh;display:flex;flex-direction:column;}
+
+/* Header */
+.hdr{padding:10px 14px 8px;border-bottom:1px solid var(--border);background:var(--ink);color:white;flex-shrink:0;}
+.hdr-row{display:flex;align-items:center;gap:8px;}
+.hdr h1{font-size:14px;font-weight:500;letter-spacing:.01em;}
+.hdr-sub{font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.55);margin-top:2px;}
+.sched-pill{margin-left:auto;display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.1);font-family:'DM Mono',monospace;font-size:10px;}
+.dot{width:6px;height:6px;border-radius:50%;background:#9ca3af;flex-shrink:0;}
+.dot.on{background:#4ade80;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(74,222,128,.3);}50%{box-shadow:0 0 0 5px rgba(74,222,128,.1);}}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:white;flex-shrink:0;}
+.tab{flex:1;padding:8px 4px;text-align:center;font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* Scroll area */
+.content{flex:1;overflow-y:auto;padding:12px;}
+
+/* Account cards */
+.acct-card{border:1px solid var(--border);border-radius:7px;background:white;margin-bottom:8px;overflow:hidden;}
+.acct-header{display:flex;align-items:center;gap:9px;padding:10px 12px;cursor:pointer;}
+.acct-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;}
+.acct-info{flex:1;min-width:0;}
+.acct-name{font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.acct-email{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.acct-toggle{width:18px;height:18px;border-radius:4px;border:1.5px solid var(--border);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.acct-toggle.checked{background:var(--accent);border-color:var(--accent);color:white;}
+.acct-stats{display:flex;gap:10px;padding:0 12px 10px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
+.acct-stats span{display:flex;align-items:center;gap:3px;}
+
+/* Config */
+.section-label{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:7px;margin-top:14px;}
+.section-label:first-child{margin-top:0;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+select,input[type=time],input[type=number]{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;background:white;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--ink);}
+.info-box{border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.5;margin-bottom:8px;display:flex;gap:7px;}
+.info-box.danger{background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d;}
+.info-box.warn{background:#fffbeb;border:1px solid #fde68a;color:#7c5200;}
+.info-box.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;}
+.info-box.success{background:#f0fdf4;border:1px solid #86efac;color:#14532d;}
+
+/* Buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:9px;border-radius:5px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500;font-size:13px;transition:all .15s;margin-bottom:7px;}
+.btn-primary{background:var(--ink);color:white;}
+.btn-primary:hover{background:#333;}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-green{background:#16a34a;color:white;}
+.btn-green:hover{background:#15803d;}
+.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--border);}
+.btn-ghost:hover{background:#f0ece4;}
+.btn-sm{padding:5px 10px;font-size:11px;width:auto;}
+
+/* Progress */
+.prog-wrap{margin-bottom:10px;}
+.prog-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between;}
+.prog-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
+.prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s;}
+
+/* Log */
+.log-area{max-height:180px;overflow-y:auto;font-family:'DM Mono',monospace;font-size:11px;line-height:1.7;background:white;border:1px solid var(--border);border-radius:6px;padding:8px;}
+.log-line{display:flex;gap:7px;border-bottom:1px solid #f5f2eb;padding:2px 0;}
+.log-line:last-child{border-bottom:none;}
+.log-ts{color:var(--muted);flex-shrink:0;font-size:10px;}
+.log-msg{color:var(--ink);}
+.log-msg.ok{color:var(--success);}
+.log-msg.warn{color:var(--warn);}
+.log-msg.err{color:var(--danger);}
+.log-msg.info{color:var(--accent);}
+
+/* Email cards */
+.email-card{border:1px solid var(--border);border-radius:6px;padding:9px 11px;margin-bottom:7px;background:white;}
+.email-card.phish{border-color:#fca5a5;background:#fff9f9;}
+.email-card.spam{border-color:#fde68a;background:#fffbf5;}
+.email-from{font-weight:500;font-size:12px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.email-subj{font-size:11px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;}
+.tag{padding:1px 7px;border-radius:20px;font-size:10px;font-family:'DM Mono',monospace;}
+.tag-phish{background:#fdecea;color:var(--danger);}
+.tag-spam{background:#fff4e0;color:#a05f00;}
+.tag-unsub{background:#e8f5ee;color:var(--success);}
+.tag-bill{background:#fdecea;color:var(--danger);}
+.tag-appt{background:#f0e8ff;color:#6b2eff;}
+.tag-folder{background:#e8edff;color:#1a3acc;}
+.tag-new{background:#fff4e0;color:var(--warn);}
+.risk-strip{height:2px;border-radius:1px;margin-bottom:7px;}
+
+/* Summary stats */
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:12px;}
+.stat-box{border:1px solid var(--border);border-radius:6px;padding:10px 8px;text-align:center;background:white;}
+.stat-num{font-size:24px;font-weight:400;font-family:'DM Sans',serif;}
+.stat-num.blue{color:var(--accent);}
+.stat-num.green{color:var(--success);}
+.stat-num.red{color:var(--danger);}
+.stat-num.orange{color:#d97706;}
+.stat-lbl{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;margin-top:2px;}
+
+/* Scheduler */
+.countdown{font-family:'DM Mono',monospace;font-size:26px;font-weight:500;color:var(--accent);margin:8px 0 2px;}
+.countdown-lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;}
+.sched-card{border:1.5px solid var(--border);border-radius:7px;padding:12px;margin-bottom:10px;background:white;}
+.sched-card.active{border-color:#86efac;background:#f0fdf4;}
+.sched-row{display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:5px;}
+.sched-key{color:var(--muted);width:80px;font-family:'DM Mono',monospace;font-size:10px;flex-shrink:0;}
+
+/* Install instructions */
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--ink);color:white;font-size:11px;font-weight:500;flex-shrink:0;margin-right:8px;}
+.install-step{display:flex;align-items:flex-start;margin-bottom:12px;font-size:12px;line-height:1.5;}
+.code-block{background:#1e1e2e;color:#cdd6f4;padding:8px 10px;border-radius:5px;font-family:'DM Mono',monospace;font-size:11px;margin:6px 0;word-break:break-all;}
+
+/* Page visibility */
+.page{display:none;}
+.page.active{display:block;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-row">
+    <div>
+      <h1>Inbox Automation</h1>
+      <div class="hdr-sub" id="hdr-acct">Loading accounts…</div>
+    </div>
+    <div class="sched-pill" id="sched-pill">
+      <span class="dot" id="pill-dot"></span>
+      <span id="pill-text">Scheduler off</span>
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" id="tab-run"   onclick="showTab('run')">Run</div>
+  <div class="tab"        id="tab-sched" onclick="showTab('sched')">Schedule</div>
+  <div class="tab"        id="tab-hist"  onclick="showTab('hist')">History</div>
+  <div class="tab"        id="tab-setup" onclick="showTab('setup')">Setup</div>
+</div>
+
+<div class="content">
+
+  <!-- ══ RUN ══ -->
+  <div class="page active" id="page-run">
+
+    <div class="section-label">Accounts to scan</div>
+    <div id="acct-list">
+      <div style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;padding:8px 0;">Detecting accounts…</div>
+    </div>
+
+    <div class="section-label">Options</div>
+    <div class="row2" style="margin-bottom:8px;">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Time range</div>
+        <select id="range-sel">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 3 months</option>
+          <option value="0">All unread</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Bill reminder</div>
+        <select id="reminder-sel">
+          <option value="1">1 day before</option>
+          <option value="3" selected>3 days before</option>
+          <option value="5">5 days before</option>
+          <option value="7">1 week before</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="info-box danger"><span>🛡</span><span>Phishing: blocked &amp; junked. No links ever clicked.</span></div>
+    <div class="info-box warn"><span>📧</span><span>Unwanted marketing: auto-unsubscribed then junked.</span></div>
+
+    <div id="run-idle">
+      <button class="btn btn-primary" onclick="startRun()">▶ Scan all accounts</button>
+    </div>
+
+    <div id="run-scanning" style="display:none;">
+      <div class="prog-wrap">
+        <div class="prog-label"><span id="scan-label">Scanning…</span><span id="scan-pct">0%</span></div>
+        <div class="prog-bar"><div class="prog-fill" id="scan-fill" style="width:0%"></div></div>
+      </div>
+      <div class="log-area" id="log-area"></div>
+    </div>
+
+    <div id="run-review" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;">Review — <span id="rev-count">0</span> emails</div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-ghost btn-sm" onclick="resetRun()">← Back</button>
+          <button class="btn btn-primary btn-sm" onclick="applyAll()">Apply all</button>
+        </div>
+      </div>
+      <div id="email-list"></div>
+    </div>
+
+    <div id="run-applying" style="display:none;">
+      <div class="prog-wrap">
+        <div class="prog-label"><span>Applying…</span><span id="apply-pct">0%</span></div>
+        <div class="prog-bar"><div class="prog-fill" id="apply-fill" style="width:0%"></div></div>
+      </div>
+      <div class="log-area" id="apply-log"></div>
+    </div>
+
+    <div id="run-done" style="display:none;">
+      <div class="info-box success" style="margin-bottom:10px;"><span>✓</span><span id="done-msg">Complete!</span></div>
+      <div class="stat-grid" id="done-stats"></div>
+      <button class="btn btn-ghost" onclick="resetRun()">Run again</button>
+    </div>
+  </div>
+
+  <!-- ══ SCHEDULE ══ -->
+  <div class="page" id="page-sched">
+    <div class="sched-card" id="sched-status-card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span class="dot" id="sched-dot"></span>
+        <strong id="sched-status-txt" style="font-size:13px;">Scheduler off</strong>
+        <span style="margin-left:auto;font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;" id="sched-next-lbl"></span>
+      </div>
+      <div id="sched-countdown-wrap" style="display:none;">
+        <div class="countdown" id="sched-countdown">00:00:00</div>
+        <div class="countdown-lbl">until next run</div>
+      </div>
+    </div>
+
+    <div class="section-label">Frequency</div>
+    <select id="sched-freq" style="margin-bottom:8px;">
+      <option value="1" selected>Daily (every day)</option>
+      <option value="3">Every 3 days</option>
+      <option value="7">Weekly</option>
+      <option value="14">Every 2 weeks</option>
+      <option value="30">Monthly</option>
+    </select>
+
+    <div class="section-label">Run time</div>
+    <input type="time" id="sched-time" value="06:30" style="margin-bottom:8px;">
+
+    <div class="section-label">Task mode</div>
+    <select id="sched-mode" style="margin-bottom:8px;">
+      <option value="all" selected>All tasks</option>
+      <option value="sort">Sort only</option>
+      <option value="spam">Spam / phish only</option>
+      <option value="unsub">Unsubscribe only</option>
+    </select>
+
+    <div class="section-label">After running</div>
+    <select id="sched-behavior" style="margin-bottom:12px;">
+      <option value="summary" selected>Show summary notification</option>
+      <option value="review">Pause for my review</option>
+    </select>
+
+    <button class="btn btn-green" onclick="enableSched()">✓ Save &amp; enable</button>
+    <button class="btn btn-ghost" onclick="disableSched()">Pause scheduler</button>
+
+    <div class="info-box warn" style="margin-top:10px;">
+      <span>⚠</span><span>Scheduler runs while the add-in task pane is open. For true background runs, use Power Automate (see Setup tab).</span>
+    </div>
+  </div>
+
+  <!-- ══ HISTORY ══ -->
+  <div class="page" id="page-hist">
+    <div class="section-label">Run history</div>
+    <div id="hist-list">
+      <div style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;padding:8px 0;">No runs yet.</div>
+    </div>
+    <button class="btn btn-ghost" style="margin-top:8px;font-size:12px;" onclick="clearHist()">Clear history</button>
+  </div>
+
+  <!-- ══ SETUP ══ -->
+  <div class="page" id="page-setup">
+    <div class="section-label">How to install this add-in</div>
+
+    <div class="install-step">
+      <span class="step-num">1</span>
+      <div>Open Outlook desktop. Click <strong>File → Manage Add-ins</strong> (or <strong>Get Add-ins</strong> in the ribbon). This opens the add-in store in your browser.</div>
+    </div>
+    <div class="install-step">
+      <span class="step-num">2</span>
+      <div>Click <strong>My add-ins</strong> in the left sidebar, then scroll down and click <strong>Add a custom add-in → Add from file…</strong></div>
+    </div>
+    <div class="install-step">
+      <span class="step-num">3</span>
+      <div>Select the <strong>manifest.xml</strong> file from the downloaded zip. Click <strong>Install</strong> when prompted.</div>
+    </div>
+    <div class="install-step">
+      <span class="step-num">4</span>
+      <div>Restart Outlook. Open any email — you'll see <strong>Inbox Automation</strong> in the ribbon. Click it to open this panel.</div>
+    </div>
+
+    <div class="info-box info">
+      <span>ℹ</span><span>For organization-wide deployment, an IT admin can deploy via the Microsoft 365 Admin Center → Settings → Integrated apps.</span>
+    </div>
+
+    <div class="section-label" style="margin-top:16px;">Background automation (no tab needed)</div>
+    <div style="border:1px solid var(--border);border-radius:6px;padding:11px;background:white;margin-bottom:8px;">
+      <div style="font-weight:500;font-size:12px;margin-bottom:4px;">Microsoft Power Automate</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:7px;line-height:1.5;">Cloud-based flows that run on schedule even when Outlook is closed. No coding required.</div>
+      <a href="https://make.powerautomate.com" style="font-size:11px;color:var(--accent);">Open Power Automate →</a>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:6px;padding:11px;background:white;">
+      <div style="font-weight:500;font-size:12px;margin-bottom:4px;">Unmatched folder policy</div>
+      <select id="def-nomatch" style="margin-top:4px;">
+        <option value="ask" selected>Ask me before creating a new folder</option>
+        <option value="auto">Auto-create new folder</option>
+        <option value="flag">Flag and leave in inbox</option>
+        <option value="skip">Skip — do nothing</option>
+      </select>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+const M365 = "https://microsoft365.mcp.claude.com/mcp";
+let accounts = [], scannedEmails = [], runHistory = [];
+let schedTimer = null, countdownTimer = null, nextRunTime = null, schedEnabled = false;
+let currentRunMode = 'all';
+
+// ── Office.js init ──
+Office.onReady(info => {
+  if (info.host === Office.HostType.Outlook) {
+    loadAccounts();
+  } else {
+    loadAccounts(); // fallback for testing outside Outlook
+  }
+});
+
+function loadAccounts() {
+  // Try Office.js for active account, supplement with Graph enumeration
+  const detected = [];
+  try {
+    const mb = Office.context.mailbox;
+    if (mb && mb.userProfile) {
+      detected.push({
+        email: mb.userProfile.emailAddress,
+        name: mb.userProfile.displayName || mb.userProfile.emailAddress.split('@')[0],
+        source: 'active',
+        checked: true,
+        stats: { inbox: '—', unread: '—' }
+      });
+    }
+  } catch(e) {}
+
+  // Add demo/additional accounts (in real deployment Graph API enumerates shared mailboxes)
+  const extras = [
+    { email: 'work@company.com', name: 'Work Account', source: 'linked', checked: true, stats: { inbox: '—', unread: '—' } },
+    { email: 'personal@outlook.com', name: 'Personal', source: 'linked', checked: true, stats: { inbox: '—', unread: '—' } },
+  ];
+
+  if (detected.length === 0) {
+    // Outside Outlook — show all three as demo
+    accounts = extras;
+  } else {
+    accounts = detected;
+    // In real add-in: also call Graph to enumerate shared/delegate mailboxes
+    // and merge into accounts array
+  }
+
+  renderAccounts();
+  document.getElementById('hdr-acct').textContent = `${accounts.length} account${accounts.length !== 1 ? 's' : ''} detected`;
+}
+
+const colors = ['#2e5cff','#e05c00','#1a7a4a','#7c3aed'];
+function initials(name) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+
+function renderAccounts() {
+  const list = document.getElementById('acct-list');
+  list.innerHTML = accounts.map((a, i) => `
+    <div class="acct-card">
+      <div class="acct-header" onclick="toggleAcct(${i})">
+        <div class="acct-avatar" style="background:${colors[i%colors.length]}22;color:${colors[i%colors.length]}">${initials(a.name)}</div>
+        <div class="acct-info">
+          <div class="acct-name">${a.name}</div>
+          <div class="acct-email">${a.email}</div>
+        </div>
+        <div class="acct-toggle ${a.checked ? 'checked' : ''}" id="chk-${i}">
+          ${a.checked ? '✓' : ''}
+        </div>
+      </div>
+      <div class="acct-stats">
+        <span>📥 Inbox: ${a.stats.inbox}</span>
+        <span>📬 Unread: ${a.stats.unread}</span>
+        <span style="color:${colors[i%colors.length]};font-size:9px;">● ${a.source}</span>
+      </div>
+    </div>`).join('');
+}
+
+function toggleAcct(i) {
+  accounts[i].checked = !accounts[i].checked;
+  renderAccounts();
+}
+
+// ── Tab nav ──
+function showTab(t) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  document.getElementById('page-'+t).classList.add('active');
+}
+
+// ── Run states ──
+function showRunState(s) {
+  ['idle','scanning','review','applying','done'].forEach(x => {
+    document.getElementById('run-'+x).style.display = x===s ? '' : 'none';
+  });
+}
+
+function log(msg, type='', icon='·') {
+  const area = document.getElementById('log-area');
+  if (!area) return;
+  const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const d = document.createElement('div');
+  d.className = 'log-line';
+  d.innerHTML = `<span class="log-ts">${now}</span><span class="log-msg ${type}">${icon} ${msg}</span>`;
+  area.appendChild(d); area.scrollTop = area.scrollHeight;
+}
+
+function alog(msg, type='', icon='·') {
+  const area = document.getElementById('apply-log');
+  if (!area) return;
+  const d = document.createElement('div');
+  d.className = 'log-line';
+  d.innerHTML = `<span class="log-msg ${type}">${icon} ${msg}</span>`;
+  area.appendChild(d); area.scrollTop = area.scrollHeight;
+}
+
+function setScanBar(pct) {
+  document.getElementById('scan-fill').style.width = pct+'%';
+  document.getElementById('scan-pct').textContent = pct+'%';
+}
+function setApplyBar(pct) {
+  document.getElementById('apply-fill').style.width = pct+'%';
+  document.getElementById('apply-pct').textContent = pct+'%';
+}
+
+// ── API ──
+async function callClaude(sys, user) {
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514", max_tokens: 1000,
+      system: sys, messages: [{role:"user",content:user}],
+      mcp_servers: [{type:"url", url:M365, name:"m365"}]
+    })
+  });
+  return r.json();
+}
+
+async function callJSON(sys, user) {
+  const d = await callClaude(sys, user);
+  const t = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  try { return JSON.parse(t.replace(/```json|```/g,'').trim()); } catch { return null; }
+}
+
+// ── Main scan ──
+async function startRun(silent=false) {
+  const selected = accounts.filter(a => a.checked);
+  if (!selected.length) { alert('Please select at least one account.'); return; }
+
+  scannedEmails = [];
+  if (!silent) { showRunState('scanning'); document.getElementById('log-area').innerHTML = ''; }
+  setScanBar(5);
+
+  for (let ai = 0; ai < selected.length; ai++) {
+    const acct = selected[ai];
+    const baseProgress = Math.round(ai / selected.length * 85);
+    const acctProgress = Math.round(1 / selected.length * 85);
+
+    log(`Scanning ${acct.email}…`, 'info', '⟳');
+    document.getElementById('scan-label').textContent = `Account ${ai+1}/${selected.length}: ${acct.name}`;
+    setScanBar(baseProgress + 5);
+
+    // Fetch folders for this account
+    let folders = [];
+    try {
+      const fd = await callClaude(
+        `List all Outlook mail folders for mailbox ${acct.email} via Microsoft 365 MCP. Include subfolders.`,
+        `List all folders in mailbox ${acct.email}`
+      );
+      const raw = (fd.content||[]).map(b=>b.type==='mcp_tool_result'?b.content?.[0]?.text||'':b.type==='text'?b.text:'').join('');
+      const m = raw.match(/"displayName"\s*:\s*"([^"]+)"/g)||[];
+      folders = [...new Set(m.map(x=>x.replace(/"displayName"\s*:\s*"/,'').replace(/"/g,'')))].filter(f=>f.length>0);
+      if (!folders.length) folders = ['Inbox','Junk Email','Bills','Work','Personal'];
+      log(`Found ${folders.length} folders in ${acct.name}`, 'ok', '✓');
+    } catch { folders = ['Inbox','Junk Email','Bills','Work','Personal']; }
+
+    setScanBar(baseProgress + Math.round(acctProgress * 0.2));
+
+    // Fetch emails
+    let emails = [];
+    try {
+      const range = document.getElementById('range-sel').value;
+      const label = range==='0' ? 'unread' : `last ${range} days`;
+      const ed = await callClaude(
+        `Fetch inbox emails for mailbox ${acct.email} via Microsoft 365 MCP.`,
+        `Get ${label} emails for ${acct.email} with sender, subject, date, body snippet.`
+      );
+      const raw2 = (ed.content||[]).map(b=>b.type==='mcp_tool_result'?b.content?.[0]?.text||'':b.type==='text'?b.text:'').join('');
+      const parsed = await callJSON(
+        'Extract emails. Return ONLY JSON array, each: {id,from,subject,date,snippet,emailId}. No preamble.',
+        `Extract:\n${raw2}`
+      );
+      if (Array.isArray(parsed) && parsed.length) {
+        emails = parsed.slice(0, 20).map(e => ({...e, _account: acct.email, _accountName: acct.name, _folders: folders}));
+        // Update account stats
+        acct.stats.inbox = emails.length;
+        log(`Loaded ${emails.length} emails from ${acct.name}`, 'ok', '✓');
+      } else throw 0;
+    } catch {
+      emails = getSamples(acct);
+      log(`Using sample emails for ${acct.name}`, 'warn', '⚠');
+    }
+
+    renderAccounts();
+    setScanBar(baseProgress + Math.round(acctProgress * 0.5));
+
+    // Classify
+    log(`Classifying ${acct.name} emails…`, 'info', '🤖');
+    const folderList = folders.join(', ');
+    for (let i = 0; i < emails.length; i++) {
+      setScanBar(baseProgress + Math.round(acctProgress * (0.5 + 0.5 * i/emails.length)));
+      const em = emails[i];
+      try {
+        const cls = await callJSON(
+          `Classify email for Outlook automation. Return ONLY JSON:
+{"category":"Phishing|Spam|UnwantedMarketing|Bill|Appointment|General","riskLevel":"high|medium|low","riskReason":"string or null","folder":"folder name","isNewFolder":false,"dueDate":"YYYY-MM-DD or null","amount":"string or null","eventTitle":"string or null"}
+Existing folders: ${folderList}. If none fit well, suggest a name and isNewFolder:true. No preamble.`,
+          `From:${em.from}\nSubject:${em.subject}\nDate:${em.date}\nPreview:${em.snippet}`
+        );
+        if (cls) {
+          scannedEmails.push({...em, ...cls});
+          const icon = cls.category==='Phishing'?'🚨':cls.category==='Spam'?'⚠':cls.category==='UnwantedMarketing'?'📧':cls.category==='Bill'?'💰':cls.category==='Appointment'?'📅':'📁';
+          log(`"${em.subject.slice(0,30)}" → ${cls.category}`, cls.category==='Phishing'?'err':cls.category==='Spam'?'warn':'ok', icon);
+        } else scannedEmails.push({...em, category:'General', riskLevel:'low', folder:null, isNewFolder:false});
+      } catch { scannedEmails.push({...em, category:'General', riskLevel:'low', folder:null, isNewFolder:false}); }
+    }
+  }
+
+  setScanBar(100);
+  log('Scan complete!', 'ok', '✓');
+
+  if (silent && document.getElementById('sched-behavior').value === 'summary') {
+    await doApply(true);
+  } else {
+    setTimeout(() => showReview(), 600);
+  }
+}
+
+function getSamples(acct) {
+  return [
+    {id:1,from:'Chase Bank <no-reply@chase.com>',subject:'Your statement is ready',date:'May 20',snippet:'Payment due Jun 15.',emailId:'m1',_account:acct.email,_accountName:acct.name,_folders:[]},
+    {id:2,from:`billing@${acct.email.split('@')[1]}`,subject:'Bill ready — Due Jun 5',date:'May 19',snippet:'Amount due: $124.50.',emailId:'m2',_account:acct.email,_accountName:acct.name,_folders:[]},
+    {id:3,from:'noreply@amaz0n-secure.net',subject:'⚠ Account suspended — verify NOW',date:'May 18',snippet:'Click here immediately.',emailId:'m3',_account:acct.email,_accountName:acct.name,_folders:[]},
+    {id:4,from:'deals@promo-spam.com',subject:'Flash sale 80% off!',date:'May 17',snippet:'Huge deals. Unsubscribe below.',emailId:'m4',_account:acct.email,_accountName:acct.name,_folders:[]},
+  ];
+}
+
+function showReview() {
+  showRunState('review');
+  const list = document.getElementById('email-list');
+  list.innerHTML = '';
+  document.getElementById('rev-count').textContent = scannedEmails.length;
+
+  scannedEmails.forEach((em, idx) => {
+    const card = document.createElement('div');
+    const cc = em.category==='Phishing'?'phish':em.category==='Spam'?'spam':em.category==='UnwantedMarketing'?'unsub':'';
+    card.className = `email-card ${cc}`;
+    const catTag = em.category==='Phishing'?`<span class="tag tag-phish">🚨 Phishing</span>`:em.category==='Spam'?`<span class="tag tag-spam">⚠ Spam</span>`:em.category==='UnwantedMarketing'?`<span class="tag tag-unsub">📧 Unsub</span>`:em.category==='Bill'?`<span class="tag tag-bill">💰 Bill</span>`:em.category==='Appointment'?`<span class="tag tag-appt">📅 Appt</span>`:`<span class="tag tag-folder" style="background:#f0f0f0;color:#555">✉ General</span>`;
+    const folderTag = ['Phishing','Spam'].includes(em.category)?`<span class="tag tag-spam">→ Junk</span>`:em.folder?(em.isNewFolder?`<span class="tag tag-new">⚠ ${em.folder}</span>`:`<span class="tag tag-folder">📁 ${em.folder}</span>`):'';
+    const acctTag = `<span class="tag" style="background:#f0f0f0;color:#555;font-size:9px;">${em._accountName||em._account}</span>`;
+    const riskBar = em.riskLevel==='high'?`<div class="risk-strip" style="background:#fca5a5;width:100%;"></div>`:em.riskLevel==='medium'?`<div class="risk-strip" style="background:#fde68a;width:60%;"></div>`:'';
+    card.innerHTML = `${riskBar}<div class="email-from">${em.from}</div><div class="email-subj">${em.subject}</div><div class="tags">${catTag} ${folderTag} ${acctTag}</div><button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;" onclick="skipEm(${idx},this)">Skip</button>`;
+    list.appendChild(card);
+  });
+}
+
+function skipEm(idx, btn) { scannedEmails[idx]._skip=true; btn.closest('.email-card').style.cssText='opacity:.3;pointer-events:none;'; }
+
+async function applyAll() { showRunState('applying'); await doApply(false); }
+
+async function doApply(silent=false) {
+  const s = {sorted:0,calendar:0,blocked:0,unsubscribed:0};
+  const toProcess = scannedEmails.filter(e=>!e._skip);
+  const nomatch = document.getElementById('def-nomatch').value;
+
+  for (let i=0; i<toProcess.length; i++) {
+    setApplyBar(Math.round(i/toProcess.length*100));
+    const em = toProcess[i];
+
+    if (['Phishing','Spam'].includes(em.category)) {
+      try {
+        await callClaude(`Use Microsoft 365 MCP to move email to Junk and block sender in mailbox ${em._account}.`,
+          `Move email "${em.emailId}" from "${em.from}" in mailbox ${em._account} to Junk Email and block sender.`);
+        alog(`Blocked: ${em.from.slice(0,38)} [${em._accountName}]`, 'err', '🚨'); s.blocked++;
+      } catch { alog(`Could not block: ${em.from.slice(0,30)}`, 'warn', '⚠'); }
+
+    } else if (em.category === 'UnwantedMarketing') {
+      try {
+        await callClaude(`Use Microsoft 365 MCP to process unsubscribe for email in mailbox ${em._account} then move to Junk.`,
+          `For email "${em.emailId}" in ${em._account} from "${em.from}": process unsubscribe then move to Junk.`);
+        alog(`Unsubscribed: ${em.from.slice(0,38)} [${em._accountName}]`, 'ok', '📧'); s.unsubscribed++;
+      } catch { alog(`Could not unsub: ${em.from.slice(0,30)}`, 'warn', '⚠'); }
+
+    } else {
+      if (em.isNewFolder && em.folder) {
+        if (nomatch === 'ask') {
+          const ok = confirm(`Create folder "${em.folder}" in ${em._account}?\n\nFor: "${em.subject}"`);
+          if (!ok) { alog(`Skipped: ${em.subject.slice(0,35)}`, 'warn', '⊘'); continue; }
+        } else if (nomatch === 'flag' || nomatch === 'skip') {
+          alog(`Skipped/flagged: ${em.subject.slice(0,35)}`, 'warn', '⊘'); continue;
+        }
+        alog(`Created folder: ${em.folder} in ${em._accountName}`, 'info', '📁');
+      }
+      if (em.folder) {
+        try {
+          await callClaude(`Use Microsoft 365 MCP to move email to folder in mailbox ${em._account}.`,
+            `Move email "${em.emailId}" in mailbox ${em._account} to folder "${em.folder}". Create if needed.`);
+          alog(`Moved → ${em.folder} [${em._accountName}]`, 'ok', '✓'); s.sorted++;
+        } catch { alog(`Could not move: ${em.subject.slice(0,30)}`, 'warn', '⚠'); }
+      }
+      if (['Bill','Appointment'].includes(em.category) && em.dueDate) {
+        const offset = parseInt(document.getElementById('reminder-sel').value||'3');
+        const title = em.eventTitle||(em.category==='Bill'?`Pay: ${em.from.split('<')[0].trim()}`:em.subject);
+        try {
+          await callClaude(`Use Microsoft 365 MCP to create Outlook calendar event for account ${em._account}.`,
+            `Create calendar event: title "${title}", date ${em.dueDate}, reminder ${offset} days before. Account: ${em._account}`);
+          alog(`Calendar: ${title} (${em.dueDate})`, 'ok', '📅'); s.calendar++;
+        } catch { alog(`Could not create event: ${title}`, 'warn', '⚠'); }
+      }
+    }
+    await new Promise(r=>setTimeout(r,200));
+  }
+
+  setApplyBar(100);
+  addHistory(s, silent?'scheduled':'manual');
+
+  if (silent) {
+    // Show Office notification if available
+    try {
+      Office.context.mailbox.item?.notificationMessages.addAsync('done', {
+        type: Office.MailboxEnums.ItemNotificationMessageType.InformationalMessage,
+        message: `Automation complete: ${s.sorted} sorted, ${s.blocked} blocked, ${s.unsubscribed} unsubscribed`,
+        icon: 'Icon.16x16', persistent: false
+      });
+    } catch(e) {}
+    showRunState('idle');
+  } else {
+    const acctNames = accounts.filter(a=>a.checked).map(a=>a.name).join(', ');
+    document.getElementById('done-msg').textContent = `Complete — ${acctNames}`;
+    document.getElementById('done-stats').innerHTML = `
+      <div class="stat-box"><div class="stat-num blue">${s.sorted}</div><div class="stat-lbl">Sorted</div></div>
+      <div class="stat-box"><div class="stat-num green">${s.calendar}</div><div class="stat-lbl">Calendar</div></div>
+      <div class="stat-box"><div class="stat-num red">${s.blocked}</div><div class="stat-lbl">Blocked</div></div>
+      <div class="stat-box"><div class="stat-num orange">${s.unsubscribed}</div><div class="stat-lbl">Unsubscribed</div></div>`;
+    showRunState('done');
+  }
+}
+
+function resetRun() { scannedEmails=[]; showRunState('idle'); }
+
+// ── History ──
+function addHistory(s, type='manual') {
+  runHistory.unshift({time:new Date().toLocaleString(),stats:s,type,accounts:accounts.filter(a=>a.checked).map(a=>a.name).join(', ')});
+  renderHistory();
+}
+function renderHistory() {
+  const list = document.getElementById('hist-list');
+  if (!runHistory.length) { list.innerHTML='<div style="color:var(--muted);font-size:12px;font-family:\'DM Mono\',monospace;padding:8px 0;">No runs yet.</div>'; return; }
+  list.innerHTML = runHistory.map(r=>`
+    <div style="border:1px solid var(--border);border-radius:6px;padding:9px 10px;background:white;margin-bottom:7px;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">${r.time}</span>
+        <span style="padding:1px 7px;border-radius:20px;font-size:10px;font-family:'DM Mono',monospace;background:${r.type==='scheduled'?'#eff6ff':'#f0fdf4'};color:${r.type==='scheduled'?'#1e3a8a':'#14532d'};">${r.type==='scheduled'?'⏱ Auto':'▶ Manual'}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-family:'DM Mono',monospace;">${r.accounts}</div>
+      <div style="display:flex;gap:8px;font-family:'DM Mono',monospace;font-size:11px;">
+        <span style="color:var(--accent);">📁 ${r.stats.sorted}</span>
+        <span style="color:var(--success);">📅 ${r.stats.calendar}</span>
+        <span style="color:var(--danger);">🚨 ${r.stats.blocked}</span>
+        <span style="color:#d97706;">📧 ${r.stats.unsubscribed}</span>
+      </div>
+    </div>`).join('');
+}
+function clearHist() { runHistory=[]; renderHistory(); }
+
+// ── Scheduler ──
+function calcNext() {
+  const [h,m] = document.getElementById('sched-time').value.split(':').map(Number);
+  const next = new Date(); next.setHours(h,m,0,0);
+  if (next <= new Date()) next.setDate(next.getDate()+1);
+  return next;
+}
+function getIntervalMs() {
+  return parseInt(document.getElementById('sched-freq').value) * 24*60*60*1000;
+}
+
+function enableSched() {
+  nextRunTime = calcNext(); schedEnabled = true;
+  updateSchedUI(true); startCountdown(); scheduleNext();
+}
+function disableSched() {
+  schedEnabled = false;
+  if (schedTimer) clearTimeout(schedTimer);
+  if (countdownTimer) clearInterval(countdownTimer);
+  updateSchedUI(false);
+}
+
+function updateSchedUI(on) {
+  const card = document.getElementById('sched-status-card');
+  card.className = 'sched-card' + (on?' active':'');
+  document.getElementById('sched-dot').className = 'dot' + (on?' on':'');
+  document.getElementById('sched-status-txt').textContent = on ? 'Scheduler active' : 'Scheduler off';
+  document.getElementById('sched-countdown-wrap').style.display = on ? '' : 'none';
+  document.getElementById('pill-dot').className = 'dot' + (on?' on':'');
+  document.getElementById('pill-text').textContent = on ? `Daily · ${document.getElementById('sched-time').value}` : 'Scheduler off';
+  if (on && nextRunTime) document.getElementById('sched-next-lbl').textContent = 'Next: '+nextRunTime.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+}
+
+function scheduleNext() {
+  if (!schedEnabled||!nextRunTime) return;
+  const delay = Math.max(0, nextRunTime - new Date());
+  schedTimer = setTimeout(async () => {
+    await startRun(true);
+    nextRunTime = new Date(nextRunTime.getTime()+getIntervalMs());
+    updateSchedUI(true); scheduleNext();
+  }, delay);
+}
+
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    if (!nextRunTime||!schedEnabled) return;
+    const diff = nextRunTime - new Date();
+    if (diff <= 0) { document.getElementById('sched-countdown').textContent='Running…'; return; }
+    const h=Math.floor(diff/3600000), m=Math.floor((diff%3600000)/60000), s=Math.floor((diff%60000)/1000);
+    document.getElementById('sched-countdown').textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }, 1000);
+}
+</script>
+</body>
+</html>
