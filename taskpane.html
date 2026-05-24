@@ -331,13 +331,27 @@ let schedTimer = null, countdownTimer = null, nextRunTime = null, schedEnabled =
 let currentRunMode = 'all';
 
 // ── Office.js init ──
-Office.onReady(info => {
-  if (info.host === Office.HostType.Outlook) {
-    loadAccounts();
-  } else {
-    loadAccounts(); // fallback for testing outside Outlook
-  }
-});
+// Initialize - works both inside and outside Outlook
+function initApp() {
+  loadAccounts();
+}
+
+// Try Office.onReady first, fall back to direct init
+if (typeof Office !== 'undefined') {
+  Office.onReady(function() {
+    initApp();
+  });
+  // Safety fallback if Office.onReady never fires
+  setTimeout(function() {
+    var acctList = document.getElementById('acct-list');
+    if (acctList && acctList.innerHTML.indexOf('Detecting') !== -1) {
+      initApp();
+    }
+  }, 3000);
+} else {
+  // Office.js not available - run directly
+  window.addEventListener('load', initApp);
+}
 
 function loadAccounts() {
   // Try Office.js for active account, supplement with Graph enumeration
